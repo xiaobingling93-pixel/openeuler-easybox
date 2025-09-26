@@ -688,7 +688,7 @@ impl ConfigHandler {
             }
             let _mount_source = Some(prepare_mount_source_res.unwrap());
             let target = &line_vec[1];
-            let fstype = line_vec[2].as_str().clone();
+            let fstype = line_vec[2].as_str();
             let _flags = MsFlags::MS_NOEXEC | MsFlags::MS_NOSUID;
             let fstab_options = &line_vec[3];
             if let Some(test_opts) = &self.config.options.test_opts {

@@ -56,7 +56,8 @@ linux = [
     "mount",
     "umount",
     "arp",
-    "less"
+    "less",
+    "logger"
 ]
 ##
 # * bypass/override ~ translate 'test' feature name to avoid dependency collision with rust core 'test' crate (o/w surfaces as compiler errors during testing)
@@ -97,7 +98,8 @@ members = [
   "src/oe/mount",
   "src/oe/umount",
   "src/oe/arp",
-  "src/oe/less"
+  "src/oe/less",
+  "src/oe/logger"
 ]
 
 [dependencies]
@@ -146,6 +148,7 @@ mount = { optional=true, version="0.0.1", package="oe_mount", path="src/oe/mount
 umount = { optional=true, version="0.0.1", package="oe_umount", path="src/oe/umount" }
 arp = { optional=true, version="0.0.1", package="oe_arp", path="src/oe/arp" }
 less = { optional=true, version="0.0.1", package="oe_less", path="src/oe/less" }
+logger = { optional=true, version="0.0.1", package="oe_logger", path="src/oe/logger" }
 
 # this breaks clippy linting with: "tests/by-util/test_factor_benches.rs: No such file or directory (os error 2)"
 # factor_benches = { optional = true, version = "0.0.0", package = "uu_factor_benches", path = "tests/benches/factor" }

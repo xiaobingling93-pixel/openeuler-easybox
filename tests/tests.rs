@@ -127,3 +127,7 @@ mod test_find;
 #[cfg(feature = "less")]
 #[path = "by-util/test_less.rs"]
 mod test_less;
+
+#[cfg(feature = "logger")]
+#[path = "by-util/test_logger.rs"]
+mod test_logger;

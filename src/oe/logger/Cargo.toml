@@ -1,0 +1,18 @@
+[package]
+name = "oe_logger"
+version = "0.0.1"
+authors = ["openeuler developers"]
+license = "MulanPSL-2.0"
+edition = "2021"
+
+[lib]
+path = "src/logger.rs"
+
+[dependencies]
+clap = { version = "3.2.0", features = ["wrap_help", "cargo"] }
+time = { version = "0.3.44", features = ["macros", "formatting", "local-offset"] }
+uucore = { version=">=0.0.16", package="uucore", path="../../uucore", features = ["encoding", "process", "entries"] }
+
+[[bin]]
+name = "logger"
+path = "src/main.rs"
