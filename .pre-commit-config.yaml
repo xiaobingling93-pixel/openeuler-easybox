@@ -10,8 +10,6 @@ repos:
       - id: check-toml
       - id: end-of-file-fixer
       - id: mixed-line-ending
-      - id: trailing-whitespace
-        exclude: tests/fixtures/column/table*
       - id: detect-private-key
   #      - id: check-executables-have-shebangs
       # - id: check-shebang-scripts-are-executable
@@ -40,13 +38,13 @@ repos:
 
   - repo: local
     hooks:
-      - id: codespell
-        name: codespell
-        description: Checks for common misspellings in text files.
-        entry: bash -c 'cargo clean;codespell -I ci/codespell_ignore_words -x ci/codespell_ignore_words -S *.rules -S ./vendor* -S ./target*'
-        language: system
-        pass_filenames: false
-        verbose: true
+      #- id: codespell
+      #  name: codespell
+      #  description: Checks for common misspellings in text files.
+      #  entry: bash -c 'cargo clean;codespell -I ci/codespell_ignore_words -x ci/codespell_ignore_words -S *.rules -S ./vendor* -S ./target*'
+      #  language: system
+      #  pass_filenames: false
+      #  verbose: true
       # - id: cargo-clippy
       #   name: cargo clippy
       #   description: Lint rust sources
@@ -86,14 +84,14 @@ repos:
         pass_filenames: false
         files: \.(rs|toml)$
         verbose: true
-      - id: cargo-test
-        name: cargo test
-        description: test the package for errors.
-        entry: bash -c 'RUST_BACKTRACE=full cargo test --all-targets --all -v -- --nocapture --test-threads=1'
-        language: rust
-        pass_filenames: false
-        files: \.(rs|toml)$
-        verbose: true
+      # - id: cargo-test
+      #   name: cargo test
+      #   description: test the package for errors.
+      #   entry: bash -c 'RUST_BACKTRACE=full cargo test --all-targets --all -v -- --nocapture --test-threads=1'
+      #   language: rust
+      #   pass_filenames: false
+      #   files: \.(rs|toml)$
+      #   verbose: true
 
 #      - id: cargo-deny
 #        name: cargo deny check

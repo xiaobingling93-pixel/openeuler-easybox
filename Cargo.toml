@@ -16,10 +16,16 @@ repository = "https://gitee.com/openeuler/easybox"
 readme = "README.md"
 keywords = ["coreutils", "easybox", "util-linux", "cli", "utility"]
 categories = ["command-line-utilities"]
-rust-version = "1.60.0"
+rust-version = "1.76.0"
 edition = "2021"
-
 build = "build.rs"
+resolver = "2"  # Use the new dependency resolver
+
+# Force all dependencies to use compatible versions
+[workspace.dependencies]
+# Use tempfile 3.25.0 which depends on getrandom 0.3.x instead of 0.4.x
+tempfile = { version = "=3.25.0" }
+
 
 [features]
 default = [ "linux" ]
@@ -113,6 +119,10 @@ sysinfo = "0.29.11"
 textwrap = { version="=0.16.1", features=["terminal_size"] }
 unicode-width = "=0.1.13"
 os_display = "=0.1.3"
+# Fix dependencies to avoid getrandom 0.4.2 (which requires edition2024)
+tempfile = "=3.24.0"  # version that uses getrandom 0.3.x
+getrandom = "=0.3.4"   # compatible with Cargo 1.76.0
+
 uucore = { version=">=0.0.16", package="uucore", path="src/uucore" }
 zip = { version = "0.6.0", optional=true, default_features=false, features=["deflate"] }
 # * uutils
@@ -150,6 +160,7 @@ arp = { optional=true, version="0.0.1", package="oe_arp", path="src/oe/arp" }
 less = { optional=true, version="0.0.1", package="oe_less", path="src/oe/less" }
 logger = { optional=true, version="0.0.1", package="oe_logger", path="src/oe/logger" }
 
+
 # this breaks clippy linting with: "tests/by-util/test_factor_benches.rs: No such file or directory (os error 2)"
 # factor_benches = { optional = true, version = "0.0.0", package = "uu_factor_benches", path = "tests/benches/factor" }
 
@@ -159,7 +170,7 @@ logger = { optional=true, version="0.0.1", package="oe_logger", path="src/oe/log
 #pin_cc = { version="1.0.61, < 1.0.62", package="cc" } ## cc v1.0.62 has compiler errors for MinRustV v1.32.0, requires 1.34 (for `std::str::split_ascii_whitespace()`)
 
 [dev-dependencies]
-chrono = { version="^0.4.19", default-features=false, features=["std", "alloc", "clock"]}
+chrono = { version="=0.4.37", default-features=false, features=["std", "alloc", "clock"]}
 conv = "0.3.0"
 filetime = "0.2.0"
 glob = "0.3.0"

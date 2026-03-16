@@ -18,7 +18,7 @@ path = "src/pgrep.rs"
 clap = { version = "3.2.0", features = ["wrap_help", "cargo"] }
 nix = { version = "0.27.1", features = ["feature"] }
 regex = "1.10.5"
-uucore = { version=">=0.0.16", package="uucore", path="../../uucore" }
+uucore = { version=">=0.0.16", package="uucore", path="../../uucore", features = ["libc"] }
 walkdir = "2.5.0"
 
 [[bin]]

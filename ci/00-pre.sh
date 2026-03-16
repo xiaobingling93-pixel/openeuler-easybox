@@ -1,113 +1,101 @@
 #!/usr/bin/env bash
-SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
-source $SCRIPT_DIR/common_function
+# Pre-installation script: Set up build environment
+set -euo pipefail
 
-# Function to check if a file contains Chinese characters
-contains_chinese() {
-    grep -Pn '[\p{Han}]' "$1" && echo "DO NOT USE CHINESE CHARACTERS in code, 不要在源码中使用中文!" && exit 1
-}
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=ci/common_function
+source "$SCRIPT_DIR/common_function"
 
-# Check for Chinese characters in modified Rust files
-git diff origin/master --name-only | grep -F '.rs' | while IFS= read -r rustfile; do
-    contains_chinese "$rustfile"
-done
+contains_chinese
 
-# Install required tools if not already installed
-if [ ! -f "/etc/centos-release" ] && [ ! -f "/etc/fedora-release" ]; then
-    required_packages=("gcc" "openssl-libs" "python3-pip" "musl-gcc" "clang" "glibc-static" "libgcc" "pam-devel" "file-devel" "util-linux-devel")
+# Find and set fastest Rust mirror for faster downloads
+echo "==> Finding fastest Rust mirror..."
+rust_mirrors=(
+    "https://mirrors.ustc.edu.cn/rust-static"
+    # "https://mirrors.tuna.tsinghua.edu.cn/rustup"
+    # "https://mirrors.sjtug.sjtu.edu.cn/rustup"
+    "https://rsproxy.cn"
+)
+
+fastest_rust_mirror=$(test_fasturl "${rust_mirrors[@]}")
+if [[ -n "$fastest_rust_mirror" ]]; then
+    export RUSTUP_DIST_SERVER="$fastest_rust_mirror"
+    export RUSTUP_UPDATE_ROOT="$fastest_rust_mirror/rustup"
+    echo "==> Using fastest Rust mirror: $fastest_rust_mirror"
 else
-    required_packages=("gcc" "openssl-libs" "python3-pip" "musl-gcc" "clang" "glibc-static" "libgcc" "pam-devel" "file-devel")
-fi
-missing_packages=()
-
-for package in "${required_packages[@]}"; do
-    rpm -qi "$package" > /dev/null 2>&1 || missing_packages+=("$package")
-done
-
-if [ "${#missing_packages[@]}" -gt 0 ]; then
-    sudo sed -i "s:repo.openeuler.org:repo.huaweicloud.com/openeuler:g" /etc/yum.repos.d/*.repo
-    sudo yum install --refresh --disablerepo OS --disablerepo EPOL --disablerepo source --disablerepo update --disablerepo EPOL-UPDATE --disablerepo debuginfo -y "${missing_packages[@]}" || exit 1
+    # Fallback to USTC mirror
+    export RUSTUP_DIST_SERVER=https://mirrors.ustc.edu.cn/rust-static
+    export RUSTUP_UPDATE_ROOT=https://mirrors.ustc.edu.cn/rust-static/rustup
+    echo "==> Using default Rust mirror: $RUSTUP_DIST_SERVER"
 fi
 
+# Install required packages using common function
+required_packages=("gcc" "openssl-libs" "python3-pip" "python3" "python3-devel" "musl-gcc" "clang" "glibc-static" "libgcc" "pam-devel" "file-devel" "util-linux-devel")
+install_packages "${required_packages[@]}"
+
+# Check if libclang.so exists, create symlink if needed
 if [ ! -e "/usr/lib64/libclang.so" ]; then
-    sofile=`ls /usr/lib64/libclang.so* | head -1`
-    sudo ln -s $sofile /usr/lib64/libclang.so
+    sofile=$(ls /usr/lib64/libclang.so* | head -1)
+    sudo ln -s "$sofile" /usr/lib64/libclang.so
 fi
 
-source ~/.bashrc
-cargo -v
-if [ $? -ne 0 ]; then
-export RUSTUP_DIST_SERVER=https://mirrors.ustc.edu.cn/rust-static
-export RUSTUP_UPDATE_ROOT=https://mirrors.ustc.edu.cn/rust-static/rustup
-curl --proto '=https'  -k https://sh.rustup.rs -o rustlang.sh
-sh rustlang.sh -y --default-toolchain none
-rm -rf rustlang.sh
+# Check if cargo is installed
+if ! command -v cargo &>/dev/null; then
+    echo "==> Installing Rust toolchain..."
+    curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs -o rustlang.sh
+    sh rustlang.sh -y --default-toolchain none
+    rm -rf rustlang.sh
 fi
 
+# Source cargo environment
+# shellcheck source=/dev/null
 source "$HOME/.cargo/env"
-rustup default 1.65
 
-arch=`uname -m`
-# install musl-build
-rustup target add $arch-unknown-linux-musl
+# Set default Rust toolchain
+if ! rustup show | grep -q "1.76.0"; then
+    echo "==> Installing Rust $rust_vendor..."
+    rustup install "$rust_vendor"
+fi
+rustup default "$rust_vendor"
 
-# Define the crate names to test
-crate_names=("https://github.com/rust-lang/crates.io-index" \
-            "https://mirrors.ustc.edu.cn/crates.io-index" \
-            "https://rsproxy.cn/crates.io-index" \
-            "https://mirrors.tuna.tsinghua.edu.cn/git/crates.io-index.git" \
-            "https://mirrors.sjtug.sjtu.edu.cn/git/crates.io-index")
-
-# Initialize minimum latency to a large value
-min_latency=9999999
-
-# Define timeout in seconds
-timeout=10
-
-# Define the fastest source
-fastest_source=""
-
-# Test each crate
-for crate_name in "${crate_names[@]}"; do
-    echo "Running test for $crate_name..."
-
-    # Send an HTTP request to get crate information and measure the execution time
-    start_time=$(date +%s%N)
-    response=$(curl -s -o /dev/null --connect-timeout 10 -w "%{time_total}" "$crate_name" > /dev/null 2>&1)
-    if [ $? -ne 0 ]; then
-        continue
-    fi
-    end_time=$(date +%s%N)
-
-    # Calculate the request time in milliseconds
-    duration=$(( ($end_time - $start_time) / 1000000 ))
-
-    echo "Test result for $crate_name: $duration ms"
-
-    # Check if it's the fastest source
-    if [ "$duration" -lt "$min_latency" ]; then
-        min_latency="$duration"
-        fastest_source="$crate_name"
-    fi
-
-    echo ""
-done
-
-echo "Fastest source: $fastest_source with latency $min_latency ms"
-
-# Fix cargo clippy timeout by replacing cargo crates with the fastest source
+# Add musl target
 arch=$(uname -m)
+echo "==> Adding musl target for $arch..."
+rustup target add "$arch-unknown-linux-musl"
 
-# Modify config
+# Find and set fastest cargo registry mirror with fallback
+echo "==> Finding available cargo registry mirrors..."
+crate_names=(
+    "https://mirrors.ustc.edu.cn/crates.io-index"
+    # "https://mirrors.tuna.tsinghua.edu.cn/git/crates.io-index.git"
+    # "https://mirrors.sjtug.sjtu.edu.cn/git/crates.io-index"
+    "https://rsproxy.cn/crates.io-index"
+)
+
+# Get available mirrors
+available_mirrors=()
+while IFS= read -r mirror; do
+    [[ -n "$mirror" ]] && available_mirrors+=("$mirror")
+done < <(get_available_cargo_mirrors "${crate_names[@]}")
+
+if [[ ${#available_mirrors[@]} -eq 0 ]]; then
+    echo "Error: No available cargo registry mirrors found!" >&2
+    echo "Please check your network connection and try again." >&2
+    exit 1
+fi
+
+# Use the first available mirror as primary
+fastest_source="${available_mirrors[0]}"
+echo "==> Primary cargo source: $fastest_source"
+
+# Configure cargo to use available mirrors with fallback
 mkdir -p ~/.cargo
 cat << EOF > ~/.cargo/config
 [source.crates-io]
 registry = "https://github.com/rust-lang/crates.io-index"
+replace-with = 'ustc'
 
-# Use the fastest source
-replace-with = 'replace'
-
-[source.replace]
+[source.ustc]
 registry = "$fastest_source"
 
 [target.$arch-unknown-linux-musl]
@@ -115,44 +103,41 @@ rustflags = ["-C", "target-feature=-crt-static"]
 
 [net]
 git-fetch-with-cli = true
+retry = 10
+
 EOF
 
-rm -rf  ~/.cargo/.package-cache
+echo "==> Cargo configuration:"
+cat ~/.cargo/config
 
+rm -rf ~/.cargo/.package-cache
+
+# Find fastest GitHub mirror
 sources=("https://521github.com/" "https://gitclone.com/github.com/" "https://gh.api.99988866.xyz/https://github.com/" "https://github.com/")
-url=$(test_fasturl ${sources[@]})
+url=$(test_fasturl "${sources[@]}")
 git config --global url."${url}".insteadOf "https://github.com/"
+echo "==> Using GitHub mirror: $url"
 
-
-pipurls=("https://pypi.tuna.tsinghua.edu.cn/simple" "http://mirrors.aliyun.com/pypi/simple/" "https://pypi.mirrors.ustc.edu.cn/simple/" "http://pypi.sdutlinux.org/" "http://pypi.douban.com/simple/")
-url=$(test_fasturl ${pipurls[@]})
+# Find fastest PyPI mirror
+pipurls=("http://mirrors.aliyun.com/pypi/simple/" "https://pypi.mirrors.ustc.edu.cn/simple/" "http://pypi.sdutlinux.org/" "http://pypi.douban.com/simple/")
+url=$(test_fasturl "${pipurls[@]}")
 
 if [[ $url =~ ^https?://([^/]+) ]]; then
     domain="${BASH_REMATCH[1]}"
-    pip config set global.index-url $url
-    pip config set global.trusted-host $domain
+    pip config set global.index-url "$url"
+    pip config set global.trusted-host "$domain"
+    echo "==> Using PyPI mirror: $url"
 fi
 
-# #git加速并安装rust工具链
-# repo="https://github.com/rust-lang/release-team.git"
-# git config --global http.lowSpeedLimit 5
-# git config --global http.lowSpeedTime 30
-# git config --global url."https://gitclone.com/github.com/".insteadOf "https://github.com/"
-# git clone $repo
-# if [ $? -ne 0 ]; then
-#     git config --unset --global url."https://gitclone.com/github.com/".insteadOf "https://github.com/"
-#     git config --global url."https://gh.api.99988866.xyz/https://github.com/".insteadOf "https://github.com/"
-#     git clone $repo
-#     if [ $? -ne 0 ]; then
-#       git config --unset --global url."https://gh.api.99988866.xyz/https://github.com/".insteadOf "https://github.com/"
-#     fi
-# fi
-# rm -rf ./awesome-rust.git
+# Install pre-commit for local development
+echo "==> Installing pre-commit and codespell..."
+pip3 install --user pre-commit codespell
+export PATH="$HOME/.local/bin:$PATH"
 
-##拉取代码
-#rm -rf sysmaster
-#git clone https://gitee.com/openeuler/sysmaster.git
-#cd sysmaster
-#git checkout -b pr_$prid
-#git fetch origin pull/$prid/head:master-$prid
-#git merge --no-edit master-$prid
+# Initialize pre-commit
+echo "==> Initializing pre-commit hooks..."
+git config --global init.templateDir ~/.git-template
+pre-commit init-templatedir ~/.git-template
+pre-commit install
+
+echo "==> Pre-installation completed successfully."

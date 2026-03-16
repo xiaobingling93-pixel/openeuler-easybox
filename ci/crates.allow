@@ -1,0 +1,45 @@
+### 基本库
+- nix
+- libc
+
+### 命令行解析
+- clap
+
+### 文件和IO操作
+- serde
+- tempfile
+- filetime
+- walkdir
+- glob
+
+### 加密和哈希
+- sha1
+- md5
+- sha2
+
+### 数据处理
+- chrono
+- regex
+- phf
+- once_cell
+
+### 系统工具
+- sysinfo
+- procfs
+- rlimit
+
+### 测试工具
+- pretty_assertions
+- rand
+- serial_test
+
+### 其他常用库
+- textwrap
+- unicode-width
+- os_display
+- clap_complete
+- wild
+- xattr
+- selinux
+- libc
+- nix
