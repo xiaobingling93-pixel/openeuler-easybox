@@ -1,0 +1,121 @@
+#!/bin/sh -e
+
+# 检查必需的环境变量
+if [ -z "$prid" ] || [ -z "$repo" ] || [ -z "$tbranch" ]; then
+    echo "错误：缺少必需的环境变量 (prid, repo, tbranch)"
+    exit 1
+fi
+
+echo "=== 构建配置 ==="
+echo "PR ID: $prid"
+echo "Repository: $repo"
+echo "Target Branch: $tbranch"
+
+# 设置 git 配置（仅如果未设置）
+if ! git config --global user.name >/dev/null 2>&1; then
+    git config --global user.email "local@example.com"
+    git config --global user.name "local"
+fi
+
+# 检查是否已有 PR 目录
+if [ -d "PR-$prid" ]; then
+    echo "错误：PR-$prid 目录已存在，构建可能已在进行中"
+    exit 1
+fi
+
+# 创建工作目录
+echo "创建工作目录..."
+mkdir -p PR-$prid
+cd PR-$prid
+
+# 清理旧代码
+if [ -d "${repo}" ]; then
+    rm -rf "${repo}"
+fi
+
+# 克隆目标分支
+echo "克隆仓库 $repo 的 $tbranch 分支..."
+git clone -b "$tbranch" https://gitcode.com/openeuler/${repo}.git
+cd "${repo}"
+
+# 创建 PR 分支（在远程引用的基础上）
+echo "创建 PR 分支并合并代码..."
+
+# 先尝试获取 PR 代码到临时分支
+TEMP_PR_REF="pr-${prid}-temp"
+PR_FETCHED=false
+
+# 尝试多种方式获取 PR
+for ref_type in "merge-requests" "pull" ""; do
+    if [ -n "$ref_type" ]; then
+        # GitLab/GitHub 标准引用
+        remote_ref="refs/${ref_type}/${prid}/head"
+    else
+        # 假设 PR 分支已经存在
+        remote_ref="pr_${prid}"
+    fi
+
+    if git ls-remote --exit-code origin "$remote_ref" >/dev/null 2>&1; then
+        echo "找到远程引用: $remote_ref"
+        # 直接 fetch 到临时分支，避免当前分支冲突
+        git fetch origin "$remote_ref":"$TEMP_PR_REF"
+        PR_FETCHED=true
+        break
+    fi
+done
+
+if [ "$PR_FETCHED" = true ]; then
+    # 创建 PR 分支并合并
+    git checkout -b "pr_$prid"
+    git merge --no-edit --allow-unrelated-histories "$TEMP_PR_REF"
+
+    # 清理临时分支
+    git branch -D "$TEMP_PR_REF" 2>/dev/null || true
+    echo "✓ PR #$prid 合并成功"
+else
+    echo "警告：无法获取 PR #$prid，将在 $tbranch 基础上构建"
+    # 切换到 PR 分支名但不做合并
+    git checkout -b "pr_$prid"
+    # 确保代码是最新的
+    git pull origin "$tbranch"
+    echo "将在 $tbranch 最新代码上构建"
+fi
+
+# 准备环境
+echo "准备构建环境..."
+if [ -d "ci" ]; then
+    # 查找并执行预构建脚本
+    for script in $(find ci/ -name "00-*.sh" | sort -u -d); do
+        echo "执行: $script"
+        if [ -x "$script" ]; then
+            bash -x "$script"
+        else
+            echo "警告：脚本 $script 不可执行，跳过"
+        fi
+    done
+else
+    echo "警告：未找到 ci/ 目录"
+fi
+
+# 加载环境变量
+if [ -f ~/.bashrc ]; then
+    source ~/.bashrc
+fi
+
+# 执行测试
+echo "执行测试..."
+if [ -d "ci" ]; then
+    # 查找并执行测试脚本（排除预构建脚本）
+    for script in $(find ci/ -name "*.sh" | sort -u -d | grep -v "00-pre.sh"); do
+        echo "执行测试: $script"
+        if [ -x "$script" ]; then
+            bash -x -e "$script"
+        else
+            echo "警告：脚本 $script 不可执行，跳过"
+        fi
+    done
+else
+    echo "警告：未找到 ci/ 目录中的测试脚本"
+fi
+
+echo "构建完成"

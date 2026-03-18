@@ -8,15 +8,15 @@
 
 use crate::logger_common::{Config, LogId};
 use std::os::raw::{c_char, c_int};
-use std::sync::OnceLock;
 // use time::{format_description, Month, OffsetDateTime, UtcOffset};
 const MAX_APPNAME_LENGTH: usize = 48;
 const MAX_HOSTNAME_LENGTH: usize = 255;
 // use uucore::libc::{localtime_r, time, time_t, tm};
-static FMT: OnceLock<Vec<time::format_description::FormatItem<'static>>> = OnceLock::new();
-use uucore::libc::{gettimeofday, localtime_r, strftime, timeval, time, time_t, tm};
 use std::{ffi::CStr, mem::zeroed, ptr::null_mut};
-const M: [&str; 12] = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+use uucore::libc::{gettimeofday, localtime_r, strftime, time, time_t, timeval, tm};
+const M: [&str; 12] = [
+    "Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",
+];
 
 extern "C" {
     fn gethostname(name: *mut c_char, len: usize) -> c_int;
@@ -68,9 +68,6 @@ fn make_tag(tag_base: &str, log_id: Option<&LogId>) -> String {
 //     }
 // }
 
-
-
-
 // fn rfc3164_ts() -> String {
 //     let off = UtcOffset::current_local_offset().unwrap_or(UtcOffset::UTC);
 //     let t = OffsetDateTime::now_utc().to_offset(off);
@@ -86,27 +83,26 @@ fn make_tag(tag_base: &str, log_id: Option<&LogId>) -> String {
 // }
 
 fn month_abbr(m: i32) -> &'static str {
-  M[m as usize]
+    M[m as usize]
 }
 
 // rfc3164_ts without time
 fn rfc3164_ts_without_time() -> String {
-  unsafe {
-    let now: time_t = time(null_mut());
-    let mut lt: tm = std::mem::zeroed();
-    localtime_r(&now, &mut lt);
-    
-    format!(
-      "{} {:>2} {:02}:{:02}:{:02}",
-      month_abbr(lt.tm_mon),
-      lt.tm_mday,
-      lt.tm_hour,
-      lt.tm_min,
-      lt.tm_sec
-    )
-  }
-}
+    unsafe {
+        let now: time_t = time(null_mut());
+        let mut lt: tm = std::mem::zeroed();
+        localtime_r(&now, &mut lt);
 
+        format!(
+            "{} {:>2} {:02}:{:02}:{:02}",
+            month_abbr(lt.tm_mon),
+            lt.tm_mday,
+            lt.tm_hour,
+            lt.tm_min,
+            lt.tm_sec
+        )
+    }
+}
 
 // fn rfc5424_ts() -> String {
 //     let off = UtcOffset::current_local_offset().unwrap_or(UtcOffset::UTC);
@@ -130,8 +126,8 @@ fn rfc5424_ts_without_time() -> String {
         localtime_r(&tv.tv_sec, &mut lt as *mut _);
 
         let year = lt.tm_year + 1900;
-        let mon  = lt.tm_mon + 1;
-        let day  = lt.tm_mday;
+        let mon = lt.tm_mon + 1;
+        let day = lt.tm_mday;
         let h = lt.tm_hour;
         let m = lt.tm_min;
         let s = lt.tm_sec;
@@ -147,7 +143,9 @@ fn rfc5424_ts_without_time() -> String {
         ) as usize;
 
         let off_raw = if wrote > 0 {
-            CStr::from_ptr(buf.as_ptr() as *const i8).to_str().unwrap_or("+0000")
+            CStr::from_ptr(buf.as_ptr() as *const i8)
+                .to_str()
+                .unwrap_or("+0000")
         } else {
             "+0000"
         };

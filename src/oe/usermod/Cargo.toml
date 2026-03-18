@@ -19,7 +19,7 @@ clap = { version = "3.2.0", features = ["wrap_help", "cargo"] }
 uucore = { version=">=0.0.16", package="uucore", path="../../uucore"}
 nix = { version = "0.27.1", features = ["user", "fs", "process", "dir"] }
 lazy_static = "1.4"
-chrono = "0.4"
+chrono = "=0.4.37"
 libc = "0.2.152"
 
 

@@ -9,7 +9,7 @@ license = "MulanPSL-2.0"
 [lib]
 path = "src/umount.rs"
 [dependencies]
-uucore = { version=">=0.0.16", features = ["umount"],package="uucore", path="../../uucore"}
+uucore = { version=">=0.0.16", features = ["mount", "umount"],package="uucore", path="../../uucore"}
 clap = { version = "3.2.0", features = ["wrap_help", "cargo"] }
 scopeguard = "1.2.0"
 nix = { version = "0.25.1", optional = false, default-features = false, features = ["mount", "process", "sched"] }
