@@ -136,14 +136,14 @@ fn rfc5424_ts_without_time() -> String {
         // %z -> +HHMM / -HHMM
         let mut buf = [0u8; 16];
         let wrote = strftime(
-            buf.as_mut_ptr() as *mut i8,
+            buf.as_mut_ptr() as *mut c_char,
             buf.len(),
-            b"%z\0".as_ptr() as *const i8,
+            b"%z\0".as_ptr() as *const c_char,
             &lt as *const tm,
         ) as usize;
 
         let off_raw = if wrote > 0 {
-            CStr::from_ptr(buf.as_ptr() as *const i8)
+            CStr::from_ptr(buf.as_ptr() as *const c_char)
                 .to_str()
                 .unwrap_or("+0000")
         } else {

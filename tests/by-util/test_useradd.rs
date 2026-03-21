@@ -15,6 +15,17 @@ use std::path::Path;
 use std::process::{Command, Stdio};
 use test_hwclock::run_ucmd_as_root_ignore_ci;
 
+/// Check if we can run sudo and get root access
+fn can_run_as_root() -> bool {
+    match Command::new("sudo")
+        .args(["-E", "--non-interactive", "whoami"])
+        .output()
+    {
+        Ok(output) => String::from_utf8_lossy(&output.stdout).trim() == "root",
+        Err(_) => false,
+    }
+}
+
 #[test]
 #[serial]
 fn test_useradd_with_badname() {
@@ -945,6 +956,11 @@ fn execute_useradd_with_multiple_groups(
     groups: &[&str],
     use_rust: bool,
 ) -> bool {
+    // Check if root access is available
+    if !can_run_as_root() {
+        println!("Skipping test: root/sudo access not available");
+        return false;
+    }
     // Remove and create groups
     for group in groups {
         let _ = run_cmd_as_root_ignore_ci(&["groupadd", group]);
@@ -2352,6 +2368,10 @@ pub fn run_cmd_as_root_ignore_ci_output(
 }
 
 fn execute_command(ts: &TestScenario, args_rust: &[&str], args_c: &[&str], use_rust: bool) -> bool {
+    if !can_run_as_root() {
+        println!("Skipping test: root/sudo access not available");
+        return false;
+    }
     let success = if use_rust {
         match run_ucmd_as_root_ignore_ci(ts, args_rust) {
             Ok(result) => result.succeeded(),

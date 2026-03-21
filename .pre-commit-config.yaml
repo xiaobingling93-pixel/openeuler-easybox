@@ -84,14 +84,14 @@ repos:
         pass_filenames: false
         files: \.(rs|toml)$
         verbose: true
-      # - id: cargo-test
-      #   name: cargo test
-      #   description: test the package for errors.
-      #   entry: bash -c 'RUST_BACKTRACE=full cargo test --all-targets --all -v -- --nocapture --test-threads=1'
-      #   language: rust
-      #   pass_filenames: false
-      #   files: \.(rs|toml)$
-      #   verbose: true
+      - id: cargo-test
+        name: cargo test
+        description: test the package for errors.
+        entry: bash -c 'RUST_BACKTRACE=full cargo test --all-targets --all -v -- --nocapture --test-threads=1'
+        language: rust
+        pass_filenames: false
+        files: \.(rs|toml)$
+        verbose: true
 
 #      - id: cargo-deny
 #        name: cargo deny check

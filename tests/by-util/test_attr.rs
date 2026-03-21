@@ -18,6 +18,66 @@ const TEST_FILE: &str = "attr_test_file";
 const TEST_LINK_FILE: &str = "attr_test_link";
 const C_ATTR_PATH: &str = "/usr/bin/attr";
 
+/// Check if we can run sudo and get root access
+fn can_run_as_root() -> bool {
+    use std::process::Command;
+    match Command::new("sudo")
+        .args(["-E", "--non-interactive", "whoami"])
+        .output()
+    {
+        Ok(output) => String::from_utf8_lossy(&output.stdout).eq("root\n"),
+        Err(_) => false,
+    }
+}
+
+/// Check if extended attributes operations can be performed
+fn can_perform_attr() -> bool {
+    use std::process::Command;
+    if !can_run_as_root() {
+        return false;
+    }
+    // Try to test if extended attributes are supported by attempting to get an attribute
+    // This will fail gracefully if xattr support is not available
+    match Command::new("sudo")
+        .args(["-E", "--non-interactive", "attr", "-l", "/tmp"])
+        .status()
+    {
+        Ok(status) if status.success() => {
+            // Additional check: try to set a secure attribute to verify full functionality
+            // In some containers, attr -l may work but secure attributes may not
+            let test_result = Command::new("sudo")
+                .args([
+                    "-E",
+                    "--non-interactive",
+                    "attr",
+                    "-S",
+                    "-s",
+                    "test_secure_attr_check",
+                    "-V",
+                    "testval",
+                    "/tmp/attr_test_check",
+                ])
+                .status();
+            // Clean up
+            let _ = Command::new("sudo")
+                .args([
+                    "-E",
+                    "--non-interactive",
+                    "rm",
+                    "-f",
+                    "/tmp/attr_test_check",
+                ])
+                .status();
+            match test_result {
+                Ok(s) => s.success(),
+                Err(_) => false,
+            }
+        }
+        Ok(_) => false,
+        Err(_) => false,
+    }
+}
+
 #[cfg(unix)]
 pub fn run_cmd_as_root_ignore_ci<S: AsRef<OsStr>>(
     ts: &TestScenario,
@@ -88,6 +148,10 @@ fn test_option_sg() {
 #[test]
 #[allow(non_snake_case)]
 fn test_secure_quiet_option_sgVSq() {
+    if !can_perform_attr() {
+        println!("Skipping test: extended attributes operations not available (requires root and xattr support)");
+        return;
+    }
     let ts = TestScenario::new(util_name!());
     let c_ts = TestScenario::new(util_name!());
     let test_args1 = &["-S", "-s", "securename", "-V", "secureval", TEST_FILE];
@@ -108,6 +172,10 @@ fn test_secure_quiet_option_sgVSq() {
 #[test]
 #[allow(non_snake_case)]
 fn test_root_followlink_option_sglVRL() {
+    if !can_perform_attr() {
+        println!("Skipping test: extended attributes operations not available (requires root and xattr support)");
+        return;
+    }
     let ts = TestScenario::new(util_name!());
     let c_ts = TestScenario::new(util_name!());
     let test_args1 = &["-LR", "-s", "rootname", "-V", "rootval", TEST_LINK_FILE];
@@ -190,6 +258,10 @@ fn test_remove_option_srgV() {
 #[test]
 #[allow(non_snake_case)]
 fn test_remove_secure_quiet_followlink_option_srSVLq() {
+    if !can_perform_attr() {
+        println!("Skipping test: extended attributes operations not available (requires root and xattr support)");
+        return;
+    }
     let ts = TestScenario::new(util_name!());
     let c_ts = TestScenario::new(util_name!());
     let test_args1 = &[
@@ -230,6 +302,10 @@ fn test_remove_secure_quiet_followlink_option_srSVLq() {
 #[test]
 #[allow(non_snake_case)]
 fn test_secure_root_quiet_option_slVSRq() {
+    if !can_perform_attr() {
+        println!("Skipping test: extended attributes operations not available (requires root and xattr support)");
+        return;
+    }
     let ts = TestScenario::new(util_name!());
     let c_ts = TestScenario::new(util_name!());
     let test_args1 = &["-s", "testattr", "-V", "testval", TEST_FILE];

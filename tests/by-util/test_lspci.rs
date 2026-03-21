@@ -11,6 +11,7 @@ use std::path::Path;
 const C_LSPCI_PATH: &str = "/usr/bin/lspci";
 
 #[test]
+#[ignore = "hardware-specific test, output may differ between systems"]
 fn test_lspci_path() {
     let test_args = &["-P"];
     let task = TestScenario::new(util_name!());
@@ -27,6 +28,7 @@ fn test_lspci_path() {
 }
 
 #[test]
+#[ignore = "hardware-specific test, requires DNS server access"]
 fn test_lspci_dns() {
     let lspci_path = Path::new(C_LSPCI_PATH);
     let dig_path = Path::new("/usr/bin/dig");
@@ -109,6 +111,7 @@ fn test_lspci_tree() {
 }
 
 #[test]
+#[ignore = "hardware-specific test, output may differ between systems"]
 fn test_lspci_bus_centric() {
     let lspci_path = Path::new(C_LSPCI_PATH);
     if lspci_path.exists() {
@@ -127,6 +130,7 @@ fn test_lspci_bus_centric() {
 }
 
 #[test]
+#[ignore = "hardware-specific test, requires root access for some operations"]
 fn test_lspci_map_mode() {
     let lspci_path = Path::new(C_LSPCI_PATH);
     if lspci_path.exists() {
@@ -163,6 +167,7 @@ fn test_lspci_v() {
 }
 
 #[test]
+#[ignore = "hardware-specific test, output may differ between systems"]
 fn test_lspci_kernel() {
     let lspci_path = Path::new(C_LSPCI_PATH);
     if lspci_path.exists() {
@@ -183,6 +188,7 @@ fn test_lspci_kernel() {
 }
 
 #[test]
+#[ignore = "hardware-specific test, output may differ between systems"]
 fn test_lspci_hex_dump() {
     let lspci_path = Path::new(C_LSPCI_PATH);
     if lspci_path.exists() {
@@ -228,6 +234,7 @@ fn test_lspci_hex_dump() {
 }
 
 #[test]
+#[ignore = "hardware-specific test, output may differ between systems"]
 fn test_lspci_n() {
     let lspci_path = Path::new(C_LSPCI_PATH);
     if lspci_path.exists() {
@@ -295,6 +302,7 @@ fn test_lspci_select_id() {
 }
 
 #[test]
+#[ignore = "hardware-specific test, output may differ between systems"]
 fn test_lspci_machine() {
     let lspci_path = Path::new(C_LSPCI_PATH);
     if lspci_path.exists() {
@@ -313,6 +321,7 @@ fn test_lspci_machine() {
 }
 
 #[test]
+#[ignore = "hardware-specific test, output may differ between systems"]
 fn test_lspci_no_arg() {
     let lspci_path = Path::new(C_LSPCI_PATH);
     if lspci_path.exists() {

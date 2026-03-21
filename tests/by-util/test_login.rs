@@ -44,6 +44,23 @@ $END: 'the is end'
 ";
 static TEST_USER_ADDED: Mutex<bool> = Mutex::new(false);
 
+/// Check if we can run sudo and get root access
+fn can_run_as_root() -> bool {
+    use std::process::Command;
+    match Command::new("sudo")
+        .args(["-E", "--non-interactive", "whoami"])
+        .output()
+    {
+        Ok(output) => String::from_utf8_lossy(&output.stdout).eq("root\n"),
+        Err(_) => false,
+    }
+}
+
+/// Check if expect is available on the system
+fn expect_available() -> bool {
+    std::path::Path::new(EXPECT_PATH).exists()
+}
+
 #[cfg(unix)]
 pub fn build_cmd_as_root(ts: &TestScenario) -> Result<UCommand, String> {
     use std::process::Command;
@@ -70,6 +87,14 @@ pub fn build_cmd_as_root(ts: &TestScenario) -> Result<UCommand, String> {
 }
 
 fn run_and_compare(ts: &TestScenario, args: &[&str], exp_script: &str) {
+    if !can_run_as_root() {
+        println!("Skipping test: root/sudo access not available");
+        return;
+    }
+    if !expect_available() {
+        println!("Skipping test: /usr/bin/expect not found");
+        return;
+    }
     let mut inited_lock = TEST_USER_ADDED.lock();
     if let Ok(inited) = inited_lock.as_deref_mut() {
         if *inited == false {
