@@ -1,7 +1,6 @@
 /target
 .vscode
 .VSCodeCounter
-Cargo.lock
 
 # Claude Code documentation
 AGENTS.md
