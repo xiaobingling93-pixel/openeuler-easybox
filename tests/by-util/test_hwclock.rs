@@ -6,6 +6,30 @@ static MUX: Mutex<()> = Mutex::new(());
 
 const UUTILS_WARNING: &str = "uutils-tests-warning";
 
+/// Check if we can run sudo and get root access
+fn can_run_as_root() -> bool {
+    use std::process::Command;
+    match Command::new("sudo")
+        .args(["-E", "--non-interactive", "whoami"])
+        .output()
+    {
+        Ok(output) => String::from_utf8_lossy(&output.stdout).eq("root\n"),
+        Err(_) => false,
+    }
+}
+
+/// Check if RTC device is available (needed for hwclock operations)
+fn has_rtc_device() -> bool {
+    use std::path::Path;
+    // Check for RTC device
+    Path::new("/dev/rtc0").exists() || Path::new("/dev/rtc").exists()
+}
+
+/// Check if hwclock operations can be performed
+fn can_perform_hwclock() -> bool {
+    can_run_as_root() && has_rtc_device()
+}
+
 #[cfg(unix)]
 pub fn run_ucmd_as_root_ignore_ci(
     ts: &TestScenario,
@@ -109,6 +133,10 @@ fn get_hardware_delay() -> i64 {
 
 #[test]
 fn test_get_hwclock_time() {
+    if !can_perform_hwclock() {
+        println!("Skipping test: hwclock operations not available (requires root and RTC device)");
+        return;
+    }
     let _lock = MUX.lock();
     let tolerance = 1_000_000; // 500 milliseconds
     let utc = adjustment_file_utc();
@@ -195,6 +223,10 @@ fn test_get_hwclock_time() {
 #[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
 #[test]
 fn test_directisa() {
+    if !can_perform_hwclock() {
+        println!("Skipping test: hwclock operations not available (requires root and RTC device)");
+        return;
+    }
     let _lock = MUX.lock();
     let utc = adjustment_file_utc();
     let tolerance = 1_000_000;
@@ -253,6 +285,10 @@ fn test_directisa() {
 
 #[test]
 fn test_set_hwclock_time() {
+    if !can_perform_hwclock() {
+        println!("Skipping test: hwclock operations not available (requires root and RTC device)");
+        return;
+    }
     let _lock = MUX.lock();
     let tolerance = 1_000_000;
     let utc = adjustment_file_utc();
@@ -310,6 +346,10 @@ fn test_set_hwclock_time() {
 
 #[test]
 fn test_systohc() {
+    if !can_perform_hwclock() {
+        println!("Skipping test: hwclock operations not available (requires root and RTC device)");
+        return;
+    }
     let _lock = MUX.lock();
     let tolerance = 1_000_000;
     let utc = adjustment_file_utc();
@@ -338,6 +378,10 @@ fn test_systohc() {
 
 #[test]
 fn test_set_system_time() {
+    if !can_perform_hwclock() {
+        println!("Skipping test: hwclock operations not available (requires root and RTC device)");
+        return;
+    }
     let _lock = MUX.lock();
     let tolerance = 1_000_000;
     let _utc = adjustment_file_utc();
@@ -392,6 +436,10 @@ fn test_set_system_time() {
 
 #[test]
 fn test_arguments_exclusive() {
+    if !can_perform_hwclock() {
+        println!("Skipping test: hwclock operations not available (requires root and RTC device)");
+        return;
+    }
     let ts = TestScenario::new(util_name!());
     let dir = ts.fixtures.clone();
 
@@ -422,6 +470,10 @@ fn test_arguments_exclusive() {
 
 #[test]
 fn test_arguments_invalid() {
+    if !can_perform_hwclock() {
+        println!("Skipping test: hwclock operations not available (requires root and RTC device)");
+        return;
+    }
     let _lock = MUX.lock();
 
     let ts = TestScenario::new(util_name!());
@@ -466,6 +518,10 @@ fn test_arguments_invalid() {
 
 #[test]
 fn test_rtc_param() {
+    if !can_perform_hwclock() {
+        println!("Skipping test: hwclock operations not available (requires root and RTC device)");
+        return;
+    }
     let _lock = MUX.lock();
 
     let ts = TestScenario::new(util_name!());
@@ -478,6 +534,10 @@ fn test_rtc_param() {
 
 #[test]
 fn test_voltage_low() {
+    if !can_perform_hwclock() {
+        println!("Skipping test: hwclock operations not available (requires root and RTC device)");
+        return;
+    }
     let _lock = MUX.lock();
 
     let ts = TestScenario::new(util_name!());
@@ -489,6 +549,10 @@ fn test_voltage_low() {
 
 #[test]
 fn test_hwclock_predict() {
+    if !can_perform_hwclock() {
+        println!("Skipping test: hwclock operations not available (requires root and RTC device)");
+        return;
+    }
     let _lock = MUX.lock();
 
     let ts = TestScenario::new(util_name!());
@@ -528,6 +592,10 @@ fn test_hwclock_predict() {
 
 #[test]
 fn test_update_drift() {
+    if !can_perform_hwclock() {
+        println!("Skipping test: hwclock operations not available (requires root and RTC device)");
+        return;
+    }
     let _lock = MUX.lock();
 
     let ts = TestScenario::new(util_name!());
@@ -564,6 +632,10 @@ fn test_update_drift() {
 
 #[test]
 fn test_testing_mode() {
+    if !can_perform_hwclock() {
+        println!("Skipping test: hwclock operations not available (requires root and RTC device)");
+        return;
+    }
     let _lock = MUX.lock();
     // use option --test to enter testing mode
     // in testing mode, nothing will be changed
@@ -646,6 +718,10 @@ fn test_testing_mode() {
 
 #[test]
 fn test_systz() {
+    if !can_perform_hwclock() {
+        println!("Skipping test: hwclock operations not available (requires root and RTC device)");
+        return;
+    }
     let _lock = MUX.lock();
 
     let ts = TestScenario::new(util_name!());
@@ -661,6 +737,10 @@ fn test_systz() {
 
 #[test]
 fn test_adjust() {
+    if !can_perform_hwclock() {
+        println!("Skipping test: hwclock operations not available (requires root and RTC device)");
+        return;
+    }
     let _lock = MUX.lock();
     let tolerance = 2_000_000;
     let ts = TestScenario::new(util_name!());
@@ -691,6 +771,10 @@ fn test_adjust() {
 
 #[test]
 fn test_multiple_date_formats() {
+    if !can_perform_hwclock() {
+        println!("Skipping test: hwclock operations not available (requires root and RTC device)");
+        return;
+    }
     let _lock = MUX.lock();
 
     let ts = TestScenario::new(util_name!());

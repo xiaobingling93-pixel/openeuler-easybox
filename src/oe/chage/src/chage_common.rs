@@ -615,9 +615,9 @@ fn list_fields(config: &Config) {
         if config.last_day == 0 {
             "password must be changed".to_string()
         } else if config.last_day < 0
-            || config.max_days >= 10000
             || config.max_days < 0
-            || (std::i64::MAX - config.last_day) < config.max_days
+            || config.max_days >= 99999
+            || (config.max_days > 0 && (std::i64::MAX - config.last_day) < config.max_days)
         {
             "never".to_string()
         } else {
@@ -631,7 +631,6 @@ fn list_fields(config: &Config) {
             "password must be changed".to_string()
         } else if config.last_day < 0
             || config.inactive_days < 0
-            || config.max_days >= 10000
             || config.max_days < 0
             || (std::i64::MAX - config.inactive_days) < config.max_days
             || (std::i64::MAX - config.last_day) < (config.max_days + config.inactive_days)

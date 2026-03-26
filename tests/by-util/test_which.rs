@@ -17,6 +17,18 @@ use crate::{
 };
 use test_attr::run_cmd_as_root_ignore_ci;
 
+/// Check if we can run sudo and get root access
+fn can_run_as_root() -> bool {
+    use std::process::Command;
+    match Command::new("sudo")
+        .args(["-E", "--non-interactive", "whoami"])
+        .output()
+    {
+        Ok(output) => String::from_utf8_lossy(&output.stdout).eq("root\n"),
+        Err(_) => false,
+    }
+}
+
 pub fn run_and_compare(
     ts: &TestScenario,
     args: &[&str],
@@ -134,6 +146,10 @@ fn test_all_multi_commands() {
 
 #[test]
 fn test_permission_filter() {
+    if !can_run_as_root() {
+        println!("Skipping test: root/sudo access not available");
+        return;
+    }
     let ts = TestScenario::new(util_name!());
     ts.cmd("/usr/bin/touch").args(&["cat", "xxx"]).run();
     ts.cmd("/usr/bin/chmod").args(&["755", "cat"]).run();

@@ -25,6 +25,8 @@ resolver = "2"  # Use the new dependency resolver
 [workspace.dependencies]
 # Use tempfile 3.25.0 which depends on getrandom 0.3.x instead of 0.4.x
 tempfile = { version = "=3.25.0" }
+# Pin unicode-segmentation to 1.12.0 as 1.13.x requires Rust 1.79.0+ (is_multiple_of)
+unicode-segmentation = { version = "=1.12.0" }
 
 
 [features]

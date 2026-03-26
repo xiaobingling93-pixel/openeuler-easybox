@@ -16,6 +16,50 @@ use crate::test_hwclock::run_ucmd_as_root_ignore_ci;
 
 static MUX: Mutex<()> = Mutex::new(());
 
+/// Check if network operations are possible (requires CAP_NET_ADMIN capability)
+fn can_perform_network_ops() -> bool {
+    use std::process::Command;
+    // First check if we can run sudo
+    match Command::new("sudo")
+        .args(["-E", "--non-interactive", "whoami"])
+        .output()
+    {
+        Ok(output) if String::from_utf8_lossy(&output.stdout).eq("root\n") => {}
+        _ => return false,
+    }
+    // Try to check if we have CAP_NET_ADMIN by checking if we can create a dummy interface
+    // This is a simple heuristic - in containers, network capabilities may be restricted
+    match Command::new("sudo")
+        .args([
+            "-E",
+            "--non-interactive",
+            "ip",
+            "link",
+            "add",
+            "dummy-test-cleanup",
+            "type",
+            "dummy",
+        ])
+        .status()
+    {
+        Ok(status) if status.success() => {
+            // Clean up the test interface
+            let _ = Command::new("sudo")
+                .args([
+                    "-E",
+                    "--non-interactive",
+                    "ip",
+                    "link",
+                    "del",
+                    "dummy-test-cleanup",
+                ])
+                .status();
+            true
+        }
+        _ => false,
+    }
+}
+
 fn expected_result_brief(
     bin_path: &str,
     test_scenario: &TestScenario,
@@ -104,6 +148,10 @@ fn test_arp_disp() {
 
 #[test]
 fn test_arp_set_del_file() {
+    if !can_perform_network_ops() {
+        println!("Skipping test: network operations not available (requires root and CAP_NET_ADMIN capability)");
+        return;
+    }
     let _lock = MUX.lock();
     let test_scenario = TestScenario::new(util_name!());
 
