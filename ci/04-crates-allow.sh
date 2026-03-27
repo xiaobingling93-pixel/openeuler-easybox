@@ -13,7 +13,7 @@ if [[ ! -f "$ALLOW_FILE" ]]; then
     exit 1
 fi
 
-ALLOWED_CRATES=$(grep -e "^-" "$ALLOW_FILE" | cut -d ':' -f 1 | cut -d '-' -f 2)
+ALLOWED_CRATES=$(grep -e "^-" "$ALLOW_FILE" | cut -d ':' -f 1 | cut -d '-' -f 2 | tr -d ' ')
 
 # Get new dependencies from Cargo.lock changes
 # Handle case where origin/master doesn't exist
