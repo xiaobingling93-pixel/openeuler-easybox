@@ -75,7 +75,7 @@ done
 
 # Run pre-commit checks
 echo "==> Running pre-commit checks..."
-if [ -n "$JENKINS_HOME" ]; then
+if [ -n "${JENKINS_HOME:-}" ]; then
     pre-commit run -vvv --all-files
 else
     SKIP=cargo-test pre-commit run -vvv --all-files

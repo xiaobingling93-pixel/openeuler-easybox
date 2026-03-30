@@ -4,21 +4,16 @@
 //
 // For the full copyright and license information, please view the LICENSE file
 // that was distributed with this source code.
-#![allow(deprecated)] // Disable ENOATTR warning
 
 use std::{
     ffi::{OsStr, OsString},
+    io,
     os::unix::ffi::{OsStrExt, OsStringExt},
-    path::Path,
 };
 
-use errno::Errno;
-use extattr::{
-    getxattr, lgetxattr, listxattr, llistxattr, lremovexattr, lsetxattr, removexattr, setxattr,
-    Flags,
-};
-use libc::{ENOATTR, ENOTSUP, EXIT_FAILURE};
+use libc::{ENODATA, ENOTSUP, EXIT_FAILURE};
 use uucore::error::{UResult, USimpleError};
+use xattr::{get, get_deref, list, list_deref, remove, remove_deref, set, set_deref};
 
 use crate::attr_common::Config;
 
@@ -28,133 +23,188 @@ const SECURE_NAME: &str = "security.";
 const TRUSTED_NAME: &str = "trusted.";
 const XFSROOT_NAME: &str = "xfsroot.";
 
+/// Helper function to format error message without os error code
+fn format_error(err: &io::Error) -> String {
+    // Get the error description without the " (os error XX)" suffix
+    let err_string = err.to_string();
+    if let Some(pos) = err_string.find(" (os error ") {
+        err_string[..pos].to_string()
+    } else {
+        err_string
+    }
+}
+
 /// Based on attr_set() in libattr.c
 pub fn attr_set(config: &Config, attrvalue: &Vec<u8>) -> UResult<()> {
-    let mut res: Result<(), Errno> = Err(Errno(0));
-    let lflags = Flags::empty();
+    let mut last_error: Option<io::Error> = None;
+
     for compat in 0..2 {
-        let name = api_convert(config, compat)?;
-        if config.follow {
-            res = setxattr(
-                <String as AsRef<Path>>::as_ref(&config.filename),
-                name,
-                attrvalue,
-                lflags,
-            );
-        } else {
-            res = lsetxattr(
-                <String as AsRef<Path>>::as_ref(&config.filename),
-                name,
-                attrvalue,
-                lflags,
-            );
-        }
-        match res {
-            Err(Errno(ENOATTR)) => continue,
-            Err(Errno(ENOTSUP)) => continue,
-            _ => break,
+        let name = match api_convert(config, compat) {
+            Ok(n) => n,
+            Err(e) => return Err(e),
         };
-    }
-    match res {
-        Ok(()) => Ok(()),
-        Err(err) => {
-            eprintln!(
-                "attr_set: {}\nCould not set \"{}\" for {}",
-                err.to_string(),
-                config.attrname,
-                config.filename
-            );
-            Err(USimpleError::new(EXIT_FAILURE, ""))
+
+        let result = if config.follow {
+            set_deref(&config.filename, &name, attrvalue)
+        } else {
+            set(&config.filename, &name, attrvalue)
+        };
+
+        match result {
+            Ok(()) => return Ok(()),
+            Err(err) => {
+                let raw_os_error = err.raw_os_error();
+                if raw_os_error == Some(ENODATA) || raw_os_error == Some(ENOTSUP) {
+                    last_error = Some(err);
+                    continue;
+                }
+                eprintln!(
+                    "attr_set: {}\nCould not set \"{}\" for {}",
+                    format_error(&err),
+                    config.attrname,
+                    config.filename
+                );
+                return Err(USimpleError::new(EXIT_FAILURE, ""));
+            }
         }
+    }
+
+    if let Some(err) = last_error {
+        eprintln!(
+            "attr_set: {}\nCould not set \"{}\" for {}",
+            format_error(&err),
+            config.attrname,
+            config.filename
+        );
+        Err(USimpleError::new(EXIT_FAILURE, ""))
+    } else {
+        Ok(())
     }
 }
 
 /// Based on attr_get() in libattr.c
 pub fn attr_get(config: &Config) -> UResult<Vec<u8>> {
-    let mut res: Result<Vec<u8>, Errno> = Err(Errno(0));
+    let mut last_error: Option<io::Error> = None;
+
     for compat in 0..2 {
-        let name = api_convert(config, compat)?;
-        if config.follow {
-            res = getxattr(<String as AsRef<Path>>::as_ref(&config.filename), name);
-        } else {
-            res = lgetxattr(<String as AsRef<Path>>::as_ref(&config.filename), name);
-        }
-        match res {
-            Err(Errno(ENOATTR)) => continue,
-            Err(Errno(ENOTSUP)) => continue,
-            _ => break,
+        let name = match api_convert(config, compat) {
+            Ok(n) => n,
+            Err(e) => return Err(e),
         };
-    }
-    match res {
-        Ok(attrvalue) => Ok(attrvalue),
-        Err(err) => {
-            eprintln!(
-                "attr_get: {}\nCould not get \"{}\" for {}",
-                err.to_string(),
-                config.attrname,
-                config.filename
-            );
-            Err(USimpleError::new(EXIT_FAILURE, ""))
+
+        let result = if config.follow {
+            get_deref(&config.filename, &name)
+        } else {
+            get(&config.filename, &name)
+        };
+
+        match result {
+            Ok(Some(value)) => return Ok(value),
+            Ok(None) => {
+                // Attribute not found
+                last_error = Some(io::Error::from_raw_os_error(ENODATA));
+                continue;
+            }
+            Err(err) => {
+                let raw_os_error = err.raw_os_error();
+                if raw_os_error == Some(ENODATA) || raw_os_error == Some(ENOTSUP) {
+                    last_error = Some(err);
+                    continue;
+                }
+                eprintln!(
+                    "attr_get: {}\nCould not get \"{}\" for {}",
+                    format_error(&err),
+                    config.attrname,
+                    config.filename
+                );
+                return Err(USimpleError::new(EXIT_FAILURE, ""));
+            }
         }
     }
+
+    eprintln!(
+        "attr_get: {}\nCould not get \"{}\" for {}",
+        last_error.map(|e| format_error(&e)).unwrap_or_default(),
+        config.attrname,
+        config.filename
+    );
+    Err(USimpleError::new(EXIT_FAILURE, ""))
 }
 
 /// Based on attr_remove() in libattr.c
 pub fn attr_remove(config: &Config) -> UResult<()> {
-    let mut res: Result<(), Errno> = Err(Errno(0));
+    let mut last_error: Option<io::Error> = None;
+
     for compat in 0..2 {
-        let name = api_convert(config, compat)?;
-        if config.follow {
-            res = removexattr(<String as AsRef<Path>>::as_ref(&config.filename), name);
-        } else {
-            res = lremovexattr(<String as AsRef<Path>>::as_ref(&config.filename), name);
-        }
-        match res {
-            Err(Errno(ENOATTR)) => continue,
-            Err(Errno(ENOTSUP)) => continue,
-            _ => break,
+        let name = match api_convert(config, compat) {
+            Ok(n) => n,
+            Err(e) => return Err(e),
         };
-    }
-    match res {
-        Ok(()) => Ok(()),
-        Err(err) => {
-            eprintln!(
-                "attr_remove: {}\nCould not remove \"{}\" for {}",
-                err.to_string(),
-                config.attrname,
-                config.filename
-            );
-            Err(USimpleError::new(EXIT_FAILURE, ""))
+
+        let result = if config.follow {
+            remove_deref(&config.filename, &name)
+        } else {
+            remove(&config.filename, &name)
+        };
+
+        match result {
+            Ok(()) => return Ok(()),
+            Err(err) => {
+                let raw_os_error = err.raw_os_error();
+                if raw_os_error == Some(ENODATA) || raw_os_error == Some(ENOTSUP) {
+                    last_error = Some(err);
+                    continue;
+                }
+                eprintln!(
+                    "attr_remove: {}\nCould not remove \"{}\" for {}",
+                    format_error(&err),
+                    config.attrname,
+                    config.filename
+                );
+                return Err(USimpleError::new(EXIT_FAILURE, ""));
+            }
         }
     }
+
+    eprintln!(
+        "attr_remove: {}\nCould not remove \"{}\" for {}",
+        last_error.map(|e| format_error(&e)).unwrap_or_default(),
+        config.attrname,
+        config.filename
+    );
+    Err(USimpleError::new(EXIT_FAILURE, ""))
 }
 
 /// Based on attr_list() in libattr.c
 pub fn attr_list(config: &Config) -> UResult<Vec<(OsString, usize)>> {
-    let res: Result<Vec<OsString>, Errno>;
-    if config.follow {
-        res = listxattr(<String as AsRef<Path>>::as_ref(&config.filename));
+    let result = if config.follow {
+        list_deref(&config.filename)
     } else {
-        res = llistxattr(<String as AsRef<Path>>::as_ref(&config.filename));
-    }
-    if let Err(err) = res {
-        eprintln!(
-            "attr_list: {}\nCould not list {}",
-            err.to_string(),
-            config.filename
-        );
-        return Err(USimpleError::new(EXIT_FAILURE, ""));
-    }
+        list(&config.filename)
+    };
+
+    let attrs = match result {
+        Ok(attrs) => attrs,
+        Err(err) => {
+            eprintln!(
+                "attr_list: {}\nCould not list {}",
+                format_error(&err),
+                config.filename
+            );
+            return Err(USimpleError::new(EXIT_FAILURE, ""));
+        }
+    };
+
     let mut alist: Vec<(OsString, usize)> = Vec::new();
-    for attrname in res.unwrap() {
+    for attrname in attrs {
         if let Ok(name) = api_unconvert(config, attrname.as_os_str()) {
-            let res_get: Result<Vec<u8>, Errno>;
-            if config.follow {
-                res_get = getxattr(<String as AsRef<Path>>::as_ref(&config.filename), attrname);
+            let res_get = if config.follow {
+                get_deref(&config.filename, &attrname)
             } else {
-                res_get = lgetxattr(<String as AsRef<Path>>::as_ref(&config.filename), attrname);
-            }
-            if let Ok(val) = res_get {
+                get(&config.filename, &attrname)
+            };
+
+            if let Ok(Some(val)) = res_get {
                 alist.push((name, val.len()));
             }
         }

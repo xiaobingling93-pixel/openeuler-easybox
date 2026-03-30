@@ -31,6 +31,7 @@ allow = [
     "CC0-1.0",
     "MPL-2.0", # XXX considered copyleft?
     "Unicode-DFS-2016",
+    "MulanPSL-2.0", # Mulan Permissive Software License, Version 2
 ]
 copyleft = "deny"
 allow-osi-fsf-free = "neither"

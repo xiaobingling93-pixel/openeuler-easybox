@@ -1,6 +1,9 @@
 [package]
 name = "oe_flock"
 version = "0.0.1"
+authors = ["openeuler developers"]
+license = "MulanPSL-2.0"
+description = "flock - manage file locks from the shell"
 edition = "2021"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html

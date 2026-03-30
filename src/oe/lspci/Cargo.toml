@@ -1,6 +1,9 @@
 [package]
 name = "oe_lspci"
 version = "0.0.1"
+authors = ["openeuler developers"]
+license = "MulanPSL-2.0"
+description = "lspci - list all PCI devices"
 edition = "2021"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
