@@ -667,11 +667,18 @@ fn arp_del(config: &Config) -> UResult<()> {
         config.protocol.herror.unwrap()(host);
         return Err((-1).into());
     }
-    memcpy_wrapper(
-        &ss as *const sockaddr_storage as *const u8,
-        &mut req.arp_pa as *mut sockaddr as *mut u8,
-        mem::size_of::<sockaddr>(),
-    );
+    // SAFETY: memcpy_wrapper is safe here because:
+    // - src is a valid pointer to initialized sockaddr_storage structure
+    // - dst is a valid pointer to writable sockaddr structure in arpreq
+    // - count is the exact size of sockaddr structure
+    // - Source and destination do not overlap
+    unsafe {
+        memcpy_wrapper(
+            &ss as *const sockaddr_storage as *const u8,
+            &mut req.arp_pa as *mut sockaddr as *mut u8,
+            mem::size_of::<sockaddr>(),
+        );
+    }
 
     if config.hw_set {
         req.arp_ha.sa_family = config.hardware.typ as u16;
@@ -706,11 +713,18 @@ fn arp_del(config: &Config) -> UResult<()> {
                             config.protocol.herror.unwrap()(mask);
                             return Err((-1).into());
                         }
-                        memcpy_wrapper(
-                            &ss as *const sockaddr_storage as *const u8,
-                            &mut req.arp_netmask as *mut sockaddr as *mut u8,
-                            mem::size_of::<sockaddr>(),
-                        );
+                        // SAFETY: memcpy_wrapper is safe here because:
+                        // - src is a valid pointer to initialized sockaddr_storage structure
+                        // - dst is a valid pointer to writable sockaddr structure in arpreq
+                        // - count is the exact size of sockaddr structure
+                        // - Source and destination do not overlap
+                        unsafe {
+                            memcpy_wrapper(
+                                &ss as *const sockaddr_storage as *const u8,
+                                &mut req.arp_netmask as *mut sockaddr as *mut u8,
+                                mem::size_of::<sockaddr>(),
+                            );
+                        }
                         flags |= ATF_NETMASK;
                     }
                 }
@@ -729,11 +743,18 @@ fn arp_del(config: &Config) -> UResult<()> {
     if flags == 0 {
         flags = 3;
     }
-    memcpy_wrapper(
-        device.as_ptr(),
-        req.arp_dev.as_mut_ptr() as *mut u8,
-        device.len().min(16),
-    );
+    // SAFETY: memcpy_wrapper is safe here because:
+    // - src is a valid pointer to device name string (CStr)
+    // - dst is a valid pointer to writable arp_dev array in arpreq
+    // - count is limited to min(device.len(), 16) to prevent buffer overflow
+    // - Source and destination do not overlap
+    unsafe {
+        memcpy_wrapper(
+            device.as_ptr(),
+            req.arp_dev.as_mut_ptr() as *mut u8,
+            device.len().min(16),
+        );
+    }
 
     /* unfortuatelly the kernel interface does not allow us to
     delete private entries anlone, so we need this hack
@@ -806,7 +827,11 @@ fn arp_getdevhw(
         };
     }
 
-    if ioctl_get_hardware_address_wrapper(config.sockfd, &mut ifr).is_err() {
+    // SAFETY: ioctl_get_hardware_address_wrapper is safe here because:
+    // - sockfd is a valid socket file descriptor obtained from socket()
+    // - ifr is a properly initialized ifreq structure
+    // - The ioctl operation is well-defined and kernel validates parameters
+    if unsafe { ioctl_get_hardware_address_wrapper(config.sockfd, &mut ifr) }.is_err() {
         eprintln!("arp: cant get HW-Address for `{}': {}.", ifname, errno());
         return Err(-1);
     }
@@ -818,11 +843,18 @@ fn arp_getdevhw(
         }
     }
 
-    memcpy_wrapper(
-        &ifru_hwaddr_wrapper(ifr) as *const sockaddr as *const u8,
-        sa as *mut sockaddr as *mut u8,
-        mem::size_of::<sockaddr>(),
-    );
+    // SAFETY: memcpy_wrapper is safe here because:
+    // - src is a valid pointer to sockaddr from ifru_hwaddr_wrapper
+    // - dst is a valid pointer to writable sockaddr structure
+    // - count is the exact size of sockaddr structure
+    // - Source and destination do not overlap
+    unsafe {
+        memcpy_wrapper(
+            &ifru_hwaddr_wrapper(ifr) as *const sockaddr as *const u8,
+            sa as *mut sockaddr as *mut u8,
+            mem::size_of::<sockaddr>(),
+        );
+    }
 
     if config.verbose {
         let xhw = get_hwntype(ifru_hwaddr_wrapper(ifr).sa_family.into())
@@ -868,11 +900,18 @@ fn arp_set(config: &Config) -> UResult<()> {
         config.protocol.herror.unwrap()(host);
         return Err((-1).into());
     }
-    memcpy_wrapper(
-        &ss as *const sockaddr_storage as *const u8,
-        &mut req.arp_pa as *mut sockaddr as *mut u8,
-        mem::size_of::<sockaddr>(),
-    );
+    // SAFETY: memcpy_wrapper is safe here because:
+    // - src is a valid pointer to initialized sockaddr_storage structure
+    // - dst is a valid pointer to writable sockaddr structure in arpreq
+    // - count is the exact size of sockaddr structure
+    // - Source and destination do not overlap
+    unsafe {
+        memcpy_wrapper(
+            &ss as *const sockaddr_storage as *const u8,
+            &mut req.arp_pa as *mut sockaddr as *mut u8,
+            mem::size_of::<sockaddr>(),
+        );
+    }
 
     /* Fetch the hardware address. */
     let hw_addr = match config.set_entry_args.get(1) {
@@ -892,11 +931,18 @@ fn arp_set(config: &Config) -> UResult<()> {
         if config.hardware.input.unwrap()(hw_addr, &mut ss).is_err() {
             return Err(USimpleError::new(-1, "invalid hardware address"));
         }
-        memcpy_wrapper(
-            &ss as *const sockaddr_storage as *const u8,
-            &mut req.arp_ha as *mut sockaddr as *mut u8,
-            mem::size_of::<sockaddr>(),
-        );
+        // SAFETY: memcpy_wrapper is safe here because:
+        // - src is a valid pointer to initialized sockaddr_storage structure
+        // - dst is a valid pointer to writable sockaddr structure in arpreq
+        // - count is the exact size of sockaddr structure
+        // - Source and destination do not overlap
+        unsafe {
+            memcpy_wrapper(
+                &ss as *const sockaddr_storage as *const u8,
+                &mut req.arp_ha as *mut sockaddr as *mut u8,
+                mem::size_of::<sockaddr>(),
+            );
+        }
     }
 
     /* Check out any modifiers. */
@@ -923,11 +969,18 @@ fn arp_set(config: &Config) -> UResult<()> {
                             config.protocol.herror.unwrap()(mask);
                             return Err((-1).into());
                         }
-                        memcpy_wrapper(
-                            &ss as *const sockaddr_storage as *const u8,
-                            &mut req.arp_netmask as *mut sockaddr as *mut u8,
-                            mem::size_of::<sockaddr>(),
-                        );
+                        // SAFETY: memcpy_wrapper is safe here because:
+                        // - src is a valid pointer to initialized sockaddr_storage structure
+                        // - dst is a valid pointer to writable sockaddr structure in arpreq
+                        // - count is the exact size of sockaddr structure
+                        // - Source and destination do not overlap
+                        unsafe {
+                            memcpy_wrapper(
+                                &ss as *const sockaddr_storage as *const u8,
+                                &mut req.arp_netmask as *mut sockaddr as *mut u8,
+                                mem::size_of::<sockaddr>(),
+                            );
+                        }
                         flags |= ATF_NETMASK;
                     }
                 }
@@ -944,11 +997,18 @@ fn arp_set(config: &Config) -> UResult<()> {
 
     /* Fill in the remainder of the request. */
     req.arp_flags = flags;
-    memcpy_wrapper(
-        device.as_ptr(),
-        req.arp_dev.as_mut_ptr() as *mut u8,
-        device.len().min(16),
-    );
+    // SAFETY: memcpy_wrapper is safe here because:
+    // - src is a valid pointer to device name string
+    // - dst is a valid pointer to writable arp_dev array in arpreq
+    // - count is limited to min(device.len(), 16) to prevent buffer overflow
+    // - Source and destination do not overlap
+    unsafe {
+        memcpy_wrapper(
+            device.as_ptr(),
+            req.arp_dev.as_mut_ptr() as *mut u8,
+            device.len().min(16),
+        );
+    }
 
     /* Call the kernel. */
     if config.verbose {
