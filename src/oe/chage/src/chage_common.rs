@@ -424,7 +424,9 @@ fn interactive_get_field(config: &mut Config) -> bool {
 
     //
     print!("\tMinimum Password Age [{}]: ", config.min_days);
-    stdout().flush().unwrap();
+    if stdout().flush().is_err() {
+        return false;
+    }
     if stdin().read_line(&mut buf).is_err() {
         return false;
     }
@@ -445,10 +447,11 @@ fn interactive_get_field(config: &mut Config) -> bool {
 
     //
     print!("\tMaximum Password Age [{}]: ", config.max_days);
-    stdout().flush().unwrap();
+    if stdout().flush().is_err() {
+        return false;
+    }
     buf.clear();
     if stdin().read_line(&mut buf).is_err() {
-        println!("hhhhh");
         return false;
     }
     let input = buf.trim();
@@ -457,13 +460,11 @@ fn interactive_get_field(config: &mut Config) -> bool {
         config.max_days = match input.parse() {
             Ok(v) => {
                 if v < -1 {
-                    println!("ghhhh");
                     return false;
                 }
                 v
             }
             Err(_) => {
-                println!("{}", input);
                 return false;
             }
         };
@@ -707,34 +708,32 @@ fn close_files(opened_files: &mut OpenedFiles) -> UResult<()> {
 ///
 fn pw_locate(login: &str, passwd_file: &File) -> Option<Passwd> {
     let reader = BufReader::new(passwd_file);
-    for line in reader.lines() {
-        if let Ok(line) = line {
-            let fields: Vec<&str> = line.split(':').collect();
-            if fields.len() >= 7 && fields[0] == login {
-                let pw_name = fields[0].to_string();
-                let pw_passwd = fields[1].to_string();
-                let pw_uid = match fields[2].parse() {
-                    Ok(uid) => uid,
-                    Err(_) => return None,
-                };
-                let pw_gid = match fields[3].parse() {
-                    Ok(gid) => gid,
-                    Err(_) => return None,
-                };
-                let pw_gecos = fields[4].to_string();
-                let pw_dir = fields[5].to_string();
-                let pw_shell = fields[6].to_string();
+    for line in reader.lines().flatten() {
+        let fields: Vec<&str> = line.split(':').collect();
+        if fields.len() >= 7 && fields[0] == login {
+            let pw_name = fields[0].to_string();
+            let pw_passwd = fields[1].to_string();
+            let pw_uid = match fields[2].parse() {
+                Ok(uid) => uid,
+                Err(_) => continue,
+            };
+            let pw_gid = match fields[3].parse() {
+                Ok(gid) => gid,
+                Err(_) => continue,
+            };
+            let pw_gecos = fields[4].to_string();
+            let pw_dir = fields[5].to_string();
+            let pw_shell = fields[6].to_string();
 
-                return Some(Passwd {
-                    pw_name,
-                    pw_passwd,
-                    pw_uid,
-                    pw_gid,
-                    pw_gecos,
-                    pw_dir,
-                    pw_shell,
-                });
-            }
+            return Some(Passwd {
+                pw_name,
+                pw_passwd,
+                pw_uid,
+                pw_gid,
+                pw_gecos,
+                pw_dir,
+                pw_shell,
+            });
         }
     }
 
@@ -744,32 +743,30 @@ fn pw_locate(login: &str, passwd_file: &File) -> Option<Passwd> {
 ///
 fn spw_locate(login: &str, shadow_file: &File) -> Option<Spwd> {
     let reader = BufReader::new(shadow_file);
-    for line in reader.lines() {
-        if let Ok(line) = line {
-            let fields: Vec<&str> = line.split(':').collect();
-            if fields.len() >= 9 && fields[0] == login {
-                let sp_namp = fields[0].to_string();
-                let sp_pwdp = fields[1].to_string();
-                let sp_lstchg = fields[2].parse().unwrap_or(-1);
-                let sp_min = fields[3].parse().unwrap_or(-1);
-                let sp_max = fields[4].parse().unwrap_or(-1);
-                let sp_warn = fields[5].parse().unwrap_or(-1);
-                let sp_inact = fields[6].parse().unwrap_or(-1);
-                let sp_expire = fields[7].parse().unwrap_or(-1);
-                let sp_flag = fields[8].parse().unwrap_or(0);
+    for line in reader.lines().flatten() {
+        let fields: Vec<&str> = line.split(':').collect();
+        if fields.len() >= 9 && fields[0] == login {
+            let sp_namp = fields[0].to_string();
+            let sp_pwdp = fields[1].to_string();
+            let sp_lstchg = fields[2].parse().unwrap_or(-1);
+            let sp_min = fields[3].parse().unwrap_or(-1);
+            let sp_max = fields[4].parse().unwrap_or(-1);
+            let sp_warn = fields[5].parse().unwrap_or(-1);
+            let sp_inact = fields[6].parse().unwrap_or(-1);
+            let sp_expire = fields[7].parse().unwrap_or(-1);
+            let sp_flag = fields[8].parse().unwrap_or(0);
 
-                return Some(Spwd {
-                    sp_namp,
-                    sp_pwdp,
-                    sp_lstchg,
-                    sp_min,
-                    sp_max,
-                    sp_warn,
-                    sp_inact,
-                    sp_expire,
-                    sp_flag,
-                });
-            }
+            return Some(Spwd {
+                sp_namp,
+                sp_pwdp,
+                sp_lstchg,
+                sp_min,
+                sp_max,
+                sp_warn,
+                sp_inact,
+                sp_expire,
+                sp_flag,
+            });
         }
     }
 
@@ -1160,22 +1157,29 @@ fn sanitize_env() {
 
 ///
 fn check_fd(fd: i32) {
-    let flags = fcntl(fd, FcntlArg::F_GETFL).unwrap_or(-1);
+    let flags = match fcntl(fd, FcntlArg::F_GETFL) {
+        Ok(f) => f,
+        Err(_) => {
+            // Failed to get flags, try to open /dev/null
+            if let Ok(file) = OpenOptions::new().read(true).write(true).open("/dev/null") {
+                let devnull_fd = file.as_raw_fd();
+                if devnull_fd != fd {
+                    eprintln!("Warning: Failed to redirect file descriptor {}", fd);
+                }
+            }
+            return;
+        }
+    };
+
     if flags != -1 {
         return;
     }
 
-    let devnull = OpenOptions::new().read(true).write(true).open("/dev/null");
-
-    match devnull {
-        Ok(file) => {
-            let devnull_fd = file.as_raw_fd();
-            if devnull_fd != fd {
-                panic!("Failed to open /dev/null with the same file descriptor");
-            }
-        }
-        Err(err) => {
-            panic!("Failed to open /dev/null: {}", err);
+    // File descriptor is invalid, redirect to /dev/null
+    if let Ok(file) = OpenOptions::new().read(true).write(true).open("/dev/null") {
+        let devnull_fd = file.as_raw_fd();
+        if devnull_fd != fd {
+            eprintln!("Warning: Failed to redirect file descriptor {}", fd);
         }
     }
 }
@@ -1189,6 +1193,8 @@ fn check_fds() {
 
 ///
 fn get_recent_err_msg() -> String {
+    // SAFETY: Calling libc strerror is safe as it returns a valid C string.
+    // The function is thread-safe in POSIX and we're only reading the error message.
     unsafe { CStr::from_ptr(strerror(*libc::__errno_location())) }
         .to_string_lossy()
         .to_string()
