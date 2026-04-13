@@ -184,9 +184,8 @@ impl Config {
         Ok(Self {
             files: options
                 .get_many::<String>("files")
-                .unwrap_or_default()
-                .cloned()
-                .collect::<Vec<_>>(),
+                .map(|v| v.cloned().collect())
+                .unwrap_or_default(),
 
             magic_file: options.get_one::<String>(options::MAGIC_FILE).cloned(),
             uncompress: options.contains_id(options::UNCOMPRESS),
@@ -196,22 +195,20 @@ impl Config {
             stop_on_error: options.contains_id(options::STOP_ON_ERROR),
             exclude: options
                 .get_many::<String>(options::EXCLUDE)
-                .unwrap_or_default()
-                .cloned()
-                .collect::<Vec<_>>(),
+                .map(|v| v.cloned().collect())
+                .unwrap_or_default(),
             exclude_quiet: options
                 .get_many::<String>(options::EXCLUDE_QUIET)
-                .unwrap_or_default()
-                .cloned()
-                .collect::<Vec<_>>(),
+                .map(|v| v.cloned().collect())
+                .unwrap_or_default(),
             files_from: options
                 .get_one::<String>(options::FILES_FROM)
-                .unwrap_or(&String::new())
-                .clone(),
+                .cloned()
+                .unwrap_or_default(),
             separator: options
                 .get_one::<String>(options::SEPARATOR)
-                .unwrap_or(&String::from(":"))
-                .clone(),
+                .cloned()
+                .unwrap_or_else(|| String::from(":")),
             mime: options.contains_id(options::MIME),
             apple: options.contains_id(options::APPLE),
             extension: options.contains_id(options::EXTENSION),
@@ -227,9 +224,8 @@ impl Config {
             preserve_date: options.contains_id(options::PRESERVE_DATE),
             parameter: options
                 .get_many::<String>(options::PARAMETER)
-                .unwrap_or_default()
-                .cloned()
-                .collect::<Vec<_>>(),
+                .map(|v| v.cloned().collect())
+                .unwrap_or_default(),
             raw: options.contains_id(options::RAW),
             special_files: options.contains_id(options::SPECIAL_FILES),
             #[cfg(feature = "sandbox")]

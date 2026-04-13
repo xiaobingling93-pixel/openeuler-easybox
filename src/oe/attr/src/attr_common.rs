@@ -133,7 +133,7 @@ impl Config {
             attrvalue,
             filename: args_matches
                 .get_one::<String>(options::FILE_NAME)
-                .unwrap()
+                .ok_or_else(|| UUsageError::new(EXIT_FAILURE, "No filename specified"))?
                 .to_string(),
             follow: args_matches.get_flag(options::FOLLOW_LINK),
             rootflag: args_matches.get_flag(options::ROOT_FLAG),
@@ -164,7 +164,7 @@ pub fn attr_app<'a>(about: &'a str, usage: &'a str) -> Command<'a> {
                 .display_order(1)
                 .takes_value(true)
                 .value_name("attrname")
-                .help("set the named attribute of the object to the given value"),
+                .help("Set the named attribute of the object to the given value"),
         )
         .arg(
             Arg::new(options::ATTR_VALUE)
@@ -172,7 +172,7 @@ pub fn attr_app<'a>(about: &'a str, usage: &'a str) -> Command<'a> {
                 .takes_value(true)
                 .display_order(5)
                 .value_name("attrvalue")
-                .help("set the value of the target attribute"),
+                .help("Set the value of the target attribute (only with -s)"),
         )
         .arg(
             Arg::new(options::GET_ATTR)
@@ -180,7 +180,7 @@ pub fn attr_app<'a>(about: &'a str, usage: &'a str) -> Command<'a> {
                 .takes_value(true)
                 .display_order(2)
                 .value_name("attrname")
-                .help("search the named object and print the value associated with that attribute name"),
+                .help("Search the named object and print the value associated with that attribute name"),
         )
         .arg(
             Arg::new(options::REMOVE_ATTR)
@@ -188,49 +188,50 @@ pub fn attr_app<'a>(about: &'a str, usage: &'a str) -> Command<'a> {
                 .takes_value(true)
                 .display_order(3)
                 .value_name("attrname")
-                .help("remove an attribute with the given name from the object if the attribute exists"),
+                .help("Remove an attribute with the given name from the object if the attribute exists"),
         )
         .arg(
             Arg::new(options::LIST_ATTR)
                 .short('l')
                 .takes_value(false)
                 .display_order(4)
-                .help("list the names of all the attributes that are associated with the object"),
+                .help("List the names of all the attributes that are associated with the object"),
         )
         .arg(
             Arg::new(options::FOLLOW_LINK)
                 .short('L')
                 .action(clap::ArgAction::SetTrue)
-                .help("operate on the attributes of the object referenced by the symbolic link"),
+                .help("Operate on the attributes of the object referenced by the symbolic link"),
         )
         .arg(
             Arg::new(options::ROOT_FLAG)
                 .short('R')
                 .action(clap::ArgAction::SetTrue)
-                .help("operate in the root attribute namespace rather that the USER attribute namespace"),
+                .help("Operate in the root attribute namespace rather that the USER attribute namespace"),
         )
         .arg(
             Arg::new(options::SECURE_FLAG)
                 .short('S')
                 .action(clap::ArgAction::SetTrue)
-                .help("specifie use of the security attribute namespace"),
+                .help("Specify use of the security attribute namespace"),
         )
         .arg(
             Arg::new(options::VERBOSE)
                 .short('q')
                 .action(clap::ArgAction::SetFalse)
-                .help("be quiet, output error messages (to stderr) but will not print status messages"),
+                .help("Be quiet, output error messages (to stderr) but will not print status messages"),
         )
         .arg(Arg::new(options::FILE_NAME).index(1).hide(true).required(true))
 }
 
 /// Set attribute and read value from stdin if need
 pub fn handle_setop(config: &Config) -> UResult<()> {
-    let mut attrvalue = Vec::<u8>::default();
-    match &config.attrvalue {
-        Some(val) => attrvalue = <String as Clone>::clone(val).into_bytes(),
+    let attrvalue = match &config.attrvalue {
+        Some(val) => val.clone().into_bytes(),
         None => {
-            std::io::stdin().read_to_end(&mut attrvalue)?;
+            let mut value = Vec::new();
+            std::io::stdin().read_to_end(&mut value)?;
+            value
         }
     };
     attr_set(config, &attrvalue)?;
@@ -242,7 +243,7 @@ pub fn handle_setop(config: &Config) -> UResult<()> {
             config.filename
         );
         std::io::stdout().write_all(&attrvalue)?;
-        print!("\n");
+        println!();
     }
     Ok(())
 }
@@ -260,7 +261,7 @@ pub fn handle_getop(config: &Config) -> UResult<()> {
     }
     std::io::stdout().write_all(&attrvalue)?;
     if config.verbose {
-        print!("\n");
+        println!();
     }
     Ok(())
 }
@@ -274,15 +275,15 @@ pub fn handle_removeop(config: &Config) -> UResult<()> {
 /// List attributes from file and output them
 pub fn handle_listop(config: &Config) -> UResult<()> {
     let alist = attr_list(config)?;
-    for i in alist {
+    for (name, size) in alist {
         if config.verbose {
             println!(
                 "Attribute {:?} has a {} byte value for {}",
-                i.0, i.1, config.filename
+                name, size, config.filename
             );
         } else {
-            std::io::stdout().write_all(i.0.as_os_str().as_bytes())?;
-            print!("\n");
+            std::io::stdout().write_all(name.as_os_str().as_bytes())?;
+            println!();
         }
     }
     Ok(())

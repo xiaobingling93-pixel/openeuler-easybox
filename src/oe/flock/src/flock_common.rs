@@ -48,7 +48,8 @@ const EX_OSERR: i32 = 71;
 const EX_CANTCREAT: i32 = 73;
 const EXIT_FAILURE: i32 = 1;
 
-static mut TIMEOUT_EXPIRED: AtomicBool = AtomicBool::new(false);
+// Use AtomicBool for thread-safe timeout tracking without unsafe
+static TIMEOUT_EXPIRED: AtomicBool = AtomicBool::new(false);
 
 ///
 pub struct Config {
@@ -431,7 +432,7 @@ pub fn handle_input(mut config: Config) -> UResult<i32> {
                     // Interrupted system call
                     Errno::EINTR => {
                         // Signal received
-                        if unsafe { TIMEOUT_EXPIRED.load(Ordering::Relaxed) } {
+                        if TIMEOUT_EXPIRED.load(Ordering::Relaxed) {
                             // -w option set and failed to lock.
                             if config.verbose {
                                 eprintln!("timeout while waiting to get lock");
@@ -635,7 +636,7 @@ fn run_program(cmd_args: Vec<String>) {
 }
 
 extern "C" fn timeout_handler(_sig: i32, _info: *mut libc::siginfo_t, _context: *mut libc::c_void) {
-    unsafe { TIMEOUT_EXPIRED.store(true, Ordering::Relaxed) };
+    TIMEOUT_EXPIRED.store(true, Ordering::Relaxed);
 }
 
 fn setup_timer(timeout_secs: u64) -> UResult<Timer> {

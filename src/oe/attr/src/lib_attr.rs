@@ -196,6 +196,7 @@ pub fn attr_list(config: &Config) -> UResult<Vec<(OsString, usize)>> {
     };
 
     let mut alist: Vec<(OsString, usize)> = Vec::new();
+
     for attrname in attrs {
         if let Ok(name) = api_unconvert(config, attrname.as_os_str()) {
             let res_get = if config.follow {
@@ -218,21 +219,24 @@ pub fn attr_list(config: &Config) -> UResult<Vec<(OsString, usize)>> {
  */
 fn api_convert(config: &Config, compat: i8) -> UResult<String> {
     if config.attrname.len() >= MAXNAMELEN {
-        return Err(USimpleError::new(EXIT_FAILURE, "Todo"));
+        return Err(USimpleError::new(EXIT_FAILURE, "Attribute name too long"));
     }
-    let mut name: String;
-    if config.rootflag {
+
+    let prefix = if config.rootflag {
         if compat == 1 {
-            name = XFSROOT_NAME.to_string();
+            XFSROOT_NAME
         } else {
-            name = TRUSTED_NAME.to_string();
+            TRUSTED_NAME
         }
     } else if config.secureflag {
-        name = SECURE_NAME.to_string();
+        SECURE_NAME
     } else {
-        name = USER_NAME.to_string();
-    }
-    name += &config.attrname;
+        USER_NAME
+    };
+
+    let mut name = String::with_capacity(prefix.len() + config.attrname.len());
+    name.push_str(prefix);
+    name.push_str(&config.attrname);
     Ok(name)
 }
 
@@ -244,33 +248,38 @@ fn api_unconvert(config: &Config, linuxname: &OsStr) -> Result<OsString, ()> {
         ATTR_SECURE,
         ATTR_ROOT,
     }
+
     let bytes_name = linuxname.as_bytes();
     let mut find_iter = bytes_name.splitn(2, |n| *n == b'.');
+
     if let Some(prefix) = find_iter.next() {
         let str_prefix = std::str::from_utf8(prefix).unwrap_or_default();
         let len_add_one = str_prefix.len() + 1; // Add the last '.'
-        let attr_type: ATTRTYPE;
-        if len_add_one == USER_NAME.len() && USER_NAME.starts_with(str_prefix) {
-            attr_type = ATTRTYPE::ATTR_USER;
+
+        let attr_type = if len_add_one == USER_NAME.len() && USER_NAME.starts_with(str_prefix) {
+            ATTRTYPE::ATTR_USER
         } else if len_add_one == SECURE_NAME.len() && SECURE_NAME.starts_with(str_prefix) {
-            attr_type = ATTRTYPE::ATTR_SECURE;
+            ATTRTYPE::ATTR_SECURE
         } else if len_add_one == TRUSTED_NAME.len() && TRUSTED_NAME.starts_with(str_prefix) {
-            attr_type = ATTRTYPE::ATTR_ROOT;
+            ATTRTYPE::ATTR_ROOT
         } else if len_add_one == XFSROOT_NAME.len() && XFSROOT_NAME.starts_with(str_prefix) {
-            attr_type = ATTRTYPE::ATTR_ROOT;
+            ATTRTYPE::ATTR_ROOT
         } else {
             return Err(());
-        }
-        // Found:
+        };
+
+        // Check namespace consistency
         if config.secureflag && attr_type != ATTRTYPE::ATTR_SECURE {
             return Err(());
         }
         if config.rootflag && attr_type != ATTRTYPE::ATTR_ROOT {
             return Err(());
         }
+
         return Ok(OsString::from_vec(
             find_iter.next().unwrap_or_default().to_vec(),
         ));
-    };
+    }
+
     Err(())
 }
