@@ -336,7 +336,6 @@ fn test_option_a() {
 }
 
 #[test]
-#[ignore = "bug"]
 fn test_option_d_skip() {
     let ts = TestScenario::new(UTIL);
     let dir_name = "test_option_d_skip_dir";
@@ -365,7 +364,6 @@ fn test_option_upper_d_read() {
 }
 
 #[test]
-#[ignore = "bug"]
 fn test_option_r() {
     let ts = TestScenario::new(UTIL);
     let dir_name = "test_option_r_dir";

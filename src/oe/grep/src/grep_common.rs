@@ -1166,17 +1166,32 @@ pub fn handle_file(path: &Path, config: &Config) -> UResult<bool> {
     if file_type.is_dir() {
         match config.directories.as_deref() {
             Some("read") => {
+                let mut any_matched = false;
                 for entry in path.read_dir()? {
                     let entry = entry?;
-                    handle_file(&entry.path(), config)?;
+                    if handle_file(&entry.path(), config)? {
+                        any_matched = true;
+                    }
                 }
-                return Ok(false);
+                return Ok(any_matched);
             }
             Some("recurse") => {
-                handle_recursive_search(config, path)?;
+                return handle_recursive_search(config, path);
+            }
+            Some("skip") => {
                 return Ok(false);
             }
-            Some("skip") | _ => {
+            None => {
+                // Default behavior: report error when no -d option specified
+                if !config.no_messages {
+                    eprintln!("{}: Is a directory", path.display());
+                }
+                return Err(USimpleError::new(
+                    2,
+                    format!("{}: Is a directory", path.display()),
+                ));
+            }
+            _ => {
                 return Ok(false);
             }
         }

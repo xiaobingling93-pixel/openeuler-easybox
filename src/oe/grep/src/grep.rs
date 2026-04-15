@@ -69,26 +69,9 @@ fn run_grep(args: impl uucore::Args) -> UResult<()> {
                     ));
                 }
             } else {
-                if path.is_file() {
-                    let matched = grep_common::handle_file(path, &config)?;
-                    if matched {
-                        any_matched = true;
-                    }
-                } else if path.is_dir() {
-                    eprintln!(
-                        "{} is a directory (recursive search not specified)",
-                        path_str
-                    );
-                    return Err(UUsageError::new(
-                        2,
-                        format!(
-                            "{} is a directory (recursive search not specified)",
-                            path_str
-                        ),
-                    ));
-                } else {
-                    eprintln!("{} is not a file", path_str);
-                    return Err(UUsageError::new(2, format!("{} is not a file", path_str)));
+                let matched = grep_common::handle_file(path, &config)?;
+                if matched {
+                    any_matched = true;
                 }
             }
         }

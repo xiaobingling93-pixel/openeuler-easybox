@@ -40,7 +40,7 @@ pub fn oemain(args: impl uucore::Args) -> UResult<()> {
     groupadd_common::handle_input(&mut config)
 }
 
-/// This the oe_app of free
+/// This the oe_app of groupadd
 ///
 pub fn oe_app<'a>() -> Command<'a> {
     groupadd_common::groupadd_app(ABOUT, USAGE)
