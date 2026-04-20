@@ -33,6 +33,14 @@ const CLOCK_DATA_ADDR: u16 = 0x71;
 // Read data from the specified register in CMOS (Complementary Metal-Oxide-Semiconductor)
 fn cmos_read(reg: u8) -> u8 {
     let mut ret: u8;
+    // SAFETY: This function performs direct I/O port access to read from CMOS.
+    // Safety guarantees:
+    // 1. This code only runs on x86/x86_64 architectures where these I/O ports are valid
+    // 2. The caller must have called get_permissions_cmos() first to obtain I/O permissions (iopl=3)
+    // 3. CLOCK_CTL_ADDR (0x70) and CLOCK_DATA_ADDR (0x71) are standard RTC/CMOS ports
+    // 4. The `out` instruction writes to the control port to select the register
+    // 5. The `in` instruction reads from the data port to get the value
+    // 6. No memory access violations can occur as these are I/O port instructions
     unsafe {
         // Write the register to the control address
         asm!(
@@ -52,6 +60,13 @@ fn cmos_read(reg: u8) -> u8 {
 
 ///
 fn cmos_write(reg: u8, val: u8) {
+    // SAFETY: This function performs direct I/O port access to write to CMOS.
+    // Safety guarantees:
+    // 1. This code only runs on x86/x86_64 architectures where these I/O ports are valid
+    // 2. The caller must have called get_permissions_cmos() first to obtain I/O permissions (iopl=3)
+    // 3. CLOCK_CTL_ADDR (0x70) and CLOCK_DATA_ADDR (0x71) are standard RTC/CMOS ports
+    // 4. The `out` instructions write to control and data ports respectively
+    // 5. No memory access violations can occur as these are I/O port instructions
     unsafe {
         asm!(
             "out dx, al",
@@ -172,6 +187,13 @@ pub fn set_hardware_clock_cmos(_config: &HwclockConfig, time: &BrokenTime) -> UR
 
 /// assembly RTC access needs to set IO permissions
 pub fn get_permissions_cmos(_config: &HwclockConfig) -> UResult<()> {
+    // SAFETY: The syscall(SYS_iopl, 3) call requests I/O privilege level 3.
+    // Safety guarantees:
+    // 1. This requires root privileges (CAP_SYS_RAWIO capability)
+    // 2. iopl() changes the I/O privilege level for the current process
+    // 3. Level 3 allows unrestricted access to all I/O ports
+    // 4. This is necessary for direct CMOS/RTC access via in/out instructions
+    // 5. The syscall is a well-defined Linux kernel interface
     let rc = unsafe { syscall(SYS_iopl, 3) } as i32;
     match rc {
         0 => Ok(()),

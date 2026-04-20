@@ -54,6 +54,48 @@ pub fn run_and_compare(ts: &TestScenario, args: &[&str]) {
     );
 }
 
+/// Compare outputs after sorting lines (for tests where output order is non-deterministic)
+pub fn run_and_compare_sorted(ts: &TestScenario, args: &[&str]) {
+    let actual_result = ts.ucmd_keepenv().args(args).run();
+    let expect_result = ts.cmd_keepenv(C_GREP_PATH).args(args).run();
+
+    println!(
+        "--- Expected stdout ---\n{}",
+        String::from_utf8_lossy(expect_result.stdout())
+    );
+    println!(
+        "--- Actual stdout ---\n{}",
+        String::from_utf8_lossy(actual_result.stdout())
+    );
+
+    println!(
+        "--- Expected stderr ---\n{}",
+        String::from_utf8_lossy(expect_result.stderr())
+    );
+    println!(
+        "--- Actual stderr ---\n{}",
+        String::from_utf8_lossy(actual_result.stderr())
+    );
+
+    println!("--- Expected exit code ---\n{}", expect_result.code());
+    println!("--- Actual exit code ---\n{}", actual_result.code());
+
+    // Sort lines for comparison
+    let expected_stdout = String::from_utf8_lossy(expect_result.stdout());
+    let actual_stdout = String::from_utf8_lossy(actual_result.stdout());
+    let mut expected_lines: Vec<&str> = expected_stdout.lines().collect();
+    let mut actual_lines: Vec<&str> = actual_stdout.lines().collect();
+    expected_lines.sort();
+    actual_lines.sort();
+
+    assert_eq!(expected_lines, actual_lines, "Sorted stdout does not match");
+    assert_eq!(
+        expect_result.code(),
+        actual_result.code(),
+        "Exit code does not match"
+    );
+}
+
 fn setup_test_file(ts: &TestScenario, file_name: &str, content: &str) -> String {
     let mut file = ts.fixtures.make_file(file_name);
     file.write_all(content.as_bytes())
@@ -336,7 +378,6 @@ fn test_option_a() {
 }
 
 #[test]
-#[ignore = "bug"]
 fn test_option_d_skip() {
     let ts = TestScenario::new(UTIL);
     let dir_name = "test_option_d_skip_dir";
@@ -365,7 +406,6 @@ fn test_option_upper_d_read() {
 }
 
 #[test]
-#[ignore = "bug"]
 fn test_option_r() {
     let ts = TestScenario::new(UTIL);
     let dir_name = "test_option_r_dir";
@@ -375,7 +415,8 @@ fn test_option_r() {
     setup_test_file(&ts, &file1, "this is a match\n");
     setup_test_file(&ts, &file2, "no match here\n");
 
-    run_and_compare(&ts, &["-r", "match", dir_name]);
+    // Use sorted comparison since parallel processing may produce different order
+    run_and_compare_sorted(&ts, &["-r", "match", dir_name]);
 }
 
 #[test]
